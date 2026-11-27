@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cbs-connector
+  namespace: chaos-lab
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cbs-connector
+  template:
+    metadata:
+      labels:
+        app: cbs-connector
+    spec:
+      containers:
+      - name: connector
+        image: busybox:1.36
+        command: ["sh", "-c"]
+        args:
+        - |
+          echo "Starting CBS Connector..."
+          if [ -z "$DB_CONNECTION_URL" ]; then
+            echo "FATAL ERROR: Missing required environment variable DB_CONNECTION_URL" >&2
+            exit 1
+          fi
+          sleep 3600

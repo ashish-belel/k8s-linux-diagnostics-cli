@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ledger-api
+  namespace: chaos-lab
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ledger-api
+  template:
+    metadata:
+      labels:
+        app: ledger-api
+    spec:
+      containers:
+      - name: api
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ledger-api-svc
+  namespace: chaos-lab
+spec:
+  selector:
+    app: ledger-api-typo   # Intentional mismatch with Pod label 'ledger-api'
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
