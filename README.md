@@ -1,48 +1,90 @@
-# Homelab-NMS
+# Kubernetes & Linux Environment Diagnostics CLI
 
-A lightweight, on-premise observability and log processing pipeline designed for homelabs and SMEs. Built on an event-driven architecture using Kafka, ClickHouse, Spring Boot, and Grafana, it serves as an affordable, self-hosted alternative to heavy enterprise monitoring platforms.
+A lightweight, zero-dependency **Core Java (JDK 21)** command-line utility built to automate first-line triage across containerized Kubernetes clusters (`Kind`) and Linux host environments.
 
-*Note: This project is currently under active development.*
+Designed around **Customer Solution Engineering (CSE)** workflows, this tool eliminates repetitive manual inspection by executing targeted `kubectl`, `df`, and `ss` checks, parsing outputs via Regex, classifying root causes, and generating a stakeholder-ready Markdown **Root Cause Analysis (RCA)** report.
 
-## 🚀 Architecture & Data Flow
+---
 
-The platform collects data from multiple observability sources, processes it through a robust Java-based pipeline, and stores it in a columnar database for high-performance time-series querying.
+## Why This Exists
 
-`[Agents]` -> `[Kafka: raw-*]` -> `[Spring Boot Pipeline]` -> `[Kafka: parsed-*]` -> `[ClickHouse]` -> `[Grafana]`
+During production incidents or customer onboarding, engineers spend significant time running the same baseline commands (`kubectl describe`, `logs`, `get endpoints`, `df -h`, `ss -tulnp`) to isolate why a service is degraded. This utility standardizes that initial diagnostic sweep into a single fast command that runs on resource-constrained Linux hosts without requiring heavy frameworks or external agents.
 
-### Core Observability Sources
-1. **Infrastructure Metrics:** Agents collect `cpu%`, `ram%`, `disk%`, and state data.
-2. **Security & Log Engine:** Tailed `/var/log/auth.log` data parsed via Grok. Includes a stateful session tracker to detect brute-force SSH attacks in real-time.
-3. **Network Availability:** SNMP and ICMP ping monitoring for device uptime and latency tracking.
+---
 
-## 🛠️ Tech Stack
+## Diagnostic Coverage
 
-*   **Ingestion & Message Broker:** Apache Kafka (KRaft mode)
-*   **Processing Pipeline:** Java, Spring Boot, Grok
-*   **Time-Series Storage:** ClickHouse (MergeTree Engine)
-*   **Relational Metadata:** PostgreSQL
-*   **Visualization:** Grafana (ClickHouse Datasource Plugin)
-*   **Deployment:** Docker Compose (K8s-ready)
+| Failure State / Signal | Command Inspected | Detection Logic | Automated Remediation Guidance |
+| :--- | :--- | :--- | :--- |
+| **`ImagePullBackOff`** | `kubectl describe pod` | Matches image pull / tag not found events | Verify image tag, registry URL, and `imagePullSecrets`. |
+| **`OOMKilled` (Exit 137)** | `kubectl describe pod` | Matches `Exit Code: 137` + verifies `Reason: OOMKilled` | Increase container memory limits/requests or investigate memory spikes. |
+| **`CrashLoopBackOff`** | `kubectl logs --previous` | Parses container crash logs & non-zero exit codes | Check missing environment variables, config maps, or startup args. |
+| **Broken Service Routing** | `kubectl get endpoints` | Detects `<none>` endpoints for active Services | Align Service `selector` labels with target Pod labels. |
+| **Host Disk Pressure** | `df -h` | Flags mounted filesystems exceeding `85%` usage | Prune unused Docker images/volumes or expand host storage. |
+| **Port / Socket Checks** | `ss -tulnp` | Audits active listening sockets on target ports | Identify port binding conflicts or stopped host services. |
 
-## ⚙️ Planned Features
+---
 
-*   **Grafana Templating:** Dynamic variables (`$host`, `$source`) to scale a single dashboard template across thousands of nodes.
-*   **Stateful Security Alerts:** In-memory session tracking to detect 5+ failed login attempts from a single IP within a 60-second window.
-*   **Data Retention Policies:** Hot/warm/cold storage policies handled directly via ClickHouse TTLs.
-*   **Multi-Tenancy:** Future support for isolated organizational data (`org_id`).
+## Prerequisites
 
-## 🚦 Getting Started
+* **OS:** Linux (Ubuntu / WSL2 Ubuntu)
+* **Java:** JDK 21 (Eclipse Temurin or OpenJDK)
+* **Tools:** `kubectl`, `docker`, and `kind` (for running the included fault sandbox)
+* **Permissions:** Read-only `kubectl` access to the target namespace (`get`, `describe`, `logs`)
 
-The platform runs entirely in Docker. To spin up the core ingestion, storage, and visualization layer:
+---
+
+## Quickstart
+
+### 1. Spin Up the Local Fault Sandbox (Optional)
+Deploy the four deliberately broken Kubernetes manifests into an isolated `chaos-lab` namespace to test the CLI:
 
 ```bash
-git clone [https://github.com/ashish-belel/homelab-nms.git](https://github.com/ashish-belel/homelab-nms.git)
-cd homelab-nms
-docker-compose up -d
+kind create cluster --name cse-lab
+kubectl create namespace chaos-lab
+kubectl apply -f chaos-manifests/ -n chaos-lab
 ```
 
-Grafana: http://localhost:3000 (admin/admin)
+### 2. Compile & Run the Diagnostics CLI
+```bash
+javac -d out src/com/cse/diagnostics/*.java
+java -cp out com.cse.diagnostics.Main --namespace chaos-lab
+```
 
-Kafka Brokers: localhost:9092
+### 3. Review the Output
+The CLI prints a color-coded triage summary to the terminal and writes a timestamped report (`diagnostic-report-<timestamp>.md`) ready to attach to a support ticket or customer handoff.
 
-ClickHouse Native: localhost:9000
+---
+
+## Customer Operations Documentation
+
+To mirror real-world solution engineering engagements, this repository includes client-facing operational docs under `/docs`:
+
+* **[`docs/PREFLIGHT_CHECKLIST.md`](docs/PREFLIGHT_CHECKLIST.md):** Environment readiness checks (disk headroom, DNS, ports, RBAC) prior to platform deployment.
+* **[`docs/SAMPLE_RCA_REPORT.md`](docs/SAMPLE_RCA_REPORT.md):** Example post-incident RCA document formatted for both technical teams and non-technical stakeholders.
+
+---
+
+## Repository Structure
+
+```text
+k8s-linux-diagnostics-cli/
+├── chaos-manifests/                # 4 broken K8s YAMLs (ImagePull, OOM, CrashLoop, DNS/Endpoints)
+├── docs/
+│   ├── PREFLIGHT_CHECKLIST.md      # Pre-deployment customer environment checklist
+│   └── SAMPLE_RCA_REPORT.md        # Sample Markdown RCA generated from lab outages
+├── src/
+│   └── com/cse/diagnostics/
+│       ├── Main.java               # CLI argument parsing & execution flow
+│       ├── CommandRunner.java      # ProcessBuilder wrapper with execution timeouts
+│       ├── ClusterScanner.java     # Runs kubectl, df, and ss diagnostics
+│       ├── RuleEngine.java         # Regex-based symptom & root-cause classifier
+│       └── ReportGenerator.java    # Terminal summary + Markdown RCA export
+└── README.md
+```
+
+---
+
+## License
+
+This project is licensed under the MIT License.
