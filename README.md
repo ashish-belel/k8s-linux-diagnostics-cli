@@ -47,8 +47,8 @@ kubectl apply -f chaos-manifests/ -n chaos-lab
 
 ### 2. Compile & Run the Diagnostics CLI
 ```bash
-javac -d out src/com/cse/diagnostics/*.java
-java -cp out com.cse.diagnostics.Main --namespace chaos-lab
+javac -d out src/com/ashish/diagnostics/*.java
+java -cp out com.ashish.diagnostics.Main --namespace chaos-lab
 ```
 
 ### 3. Review the Output
@@ -74,7 +74,7 @@ k8s-linux-diagnostics-cli/
 │   ├── PREFLIGHT_CHECKLIST.md      # Pre-deployment customer environment checklist
 │   └── SAMPLE_RCA_REPORT.md        # Sample Markdown RCA generated from lab outages
 ├── src/
-│   └── com/cse/diagnostics/
+│   └── com/ashish/diagnostics/
 │       ├── Main.java               # CLI argument parsing & execution flow
 │       ├── CommandRunner.java      # ProcessBuilder wrapper with execution timeouts
 │       ├── ClusterScanner.java     # Runs kubectl, df, and ss diagnostics
