@@ -14,6 +14,29 @@ public class RuleEngine {
     private static final Pattern IMAGE_PULL = Pattern.compile("(ErrImagePull|ImagePullBackOff|Failed to pull image)");
     private static final Pattern DISK_USAGE = Pattern.compile("(\\S+)\\s+\\S+\\s+\\S+\\s+\\S+\\s+(\\d+)%\\s+(\\S+)");
     private static final Pattern LOG_ERROR = Pattern.compile("(?i)(FATAL|ERROR|Exception|missing).*");
+    private static final Pattern LISTENING_PORT = Pattern.compile("LISTEN\\s+\\d+\\s+\\d+\\s+\\S+:(\\d+)\\s+");
+
+    public static List<Finding> analyzePorts(String ssOutput) {
+        List<Finding> findings = new ArrayList<>();
+        List<Integer> watchedPorts = List.of(80, 443, 3000, 8080, 9090, 9092);
+
+        for (String line : ssOutput.split("\n")) {
+            Matcher m = LISTENING_PORT.matcher(line);
+            if (m.find()) {
+                int port = Integer.parseInt(m.group(1));
+                if (watchedPorts.contains(port)) {
+                    findings.add(new Finding(
+                        "WARNING",
+                        "Host Port (" + port + ")",
+                        "Port Already Bound (LISTEN)",
+                        "Port " + port + " is actively in use on the host, which may cause bind conflicts for new services or agents.",
+                        "Run `sudo ss -tulnp | grep :" + port + "` to identify the owning PID before deploying."
+                    ));
+                }
+            }
+        }
+        return findings;
+    }
 
     public static Finding analyzePod(String podName, String describeOutput, String previousLogs) {
         if (IMAGE_PULL.matcher(describeOutput).find()) {
