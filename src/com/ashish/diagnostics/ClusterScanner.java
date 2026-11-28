@@ -46,6 +46,12 @@ public class ClusterScanner {
             findings.addAll(RuleEngine.analyzeDisk(dfRes.stdout()));
         }
 
+        // 4. Scan Host Listening Ports for Potential Conflicts
+        var ssRes = CommandRunner.run(List.of("ss", "-tulnp"));
+        if (ssRes.exitCode() == 0) {
+            findings.addAll(RuleEngine.analyzePorts(ssRes.stdout()));
+        }
+
         return findings;
     }
 }
